@@ -107,9 +107,9 @@ export const app = new Elysia({
           hash: params.hash,
 
           transaction: {
-            contract: details.contract,
-            toWalletAddress: details.toWalletAddress,
-            fromWalletAddress: details.fromWalletAddress,
+            contract: details.contract?.toLowerCase(),
+            toWalletAddress: details.toWalletAddress.toLowerCase(),
+            fromWalletAddress: details.fromWalletAddress.toLowerCase(),
             amount: details.amount,
             datetime: details.datetime,
             blockNumber: details.blockNumber,
