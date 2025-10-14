@@ -15,7 +15,8 @@ class EthersService {
       "https://bsc-dataseed2.defibit.io/",
     ];
 
-    this.provider = new ethers.JsonRpcProvider(rpcUrls[0]);
+    // this.provider = new ethers.JsonRpcProvider(rpcUrls[5]);
+    this.provider = new ethers.JsonRpcProvider('https://bsc.blockrazor.xyz');
   }
 
   private isUSDTContract(address: string): boolean {
@@ -177,8 +178,7 @@ class EthersService {
     } catch (error) {
       console.error("Error in getDetailsByHash:", error);
       throw new Error(
-        `Failed to fetch transaction details: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Failed to fetch transaction details: ${error instanceof Error ? error.message : "Unknown error"
         }`,
       );
     }
