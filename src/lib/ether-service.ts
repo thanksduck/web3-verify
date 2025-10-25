@@ -1,22 +1,22 @@
 import { ethers, type Log } from "ethers";
+import { RPC_URL1, RPC_URL2, RPC_URL3, RPC_URL4, RPC_URL5 } from "@/env";
 import type { TransactionDetails } from "@/types";
+import { RPCPool } from "./rpc-pool";
 
 class EthersService {
-  private provider: ethers.JsonRpcProvider;
+  private rpcPool: RPCPool;
   private readonly USDT_CONTRACT = "0x55d398326f99059ff775485246999027b3197955";
 
   constructor() {
     const rpcUrls = [
-      "https://bsc-dataseed1.binance.org/",
-      "https://bsc-dataseed2.binance.org/",
-      "https://bsc-dataseed3.binance.org/",
-      "https://bsc-dataseed4.binance.org/",
-      "https://bsc-dataseed1.defibit.io/",
-      "https://bsc-dataseed2.defibit.io/",
+      RPC_URL1,
+      RPC_URL2,
+      RPC_URL3,
+      RPC_URL4,
+      RPC_URL4,
+      RPC_URL5,
     ];
-
-    // this.provider = new ethers.JsonRpcProvider(rpcUrls[5]);
-    this.provider = new ethers.JsonRpcProvider('https://bsc.blockrazor.xyz');
+    this.rpcPool = new RPCPool(rpcUrls);
   }
 
   private isUSDTContract(address: string): boolean {
@@ -28,16 +28,18 @@ class EthersService {
     decimals: number;
   } | null> {
     try {
-      const abi = [
-        "function symbol() view returns (string)",
-        "function decimals() view returns (uint8)",
-      ];
-      const contract = new ethers.Contract(contractAddress, abi, this.provider);
-      const [symbol, decimals] = await Promise.all([
-        contract.symbol(),
-        contract.decimals(),
-      ]);
-      return { symbol, decimals };
+      return await this.rpcPool.executeWithRetry(async (provider) => {
+        const abi = [
+          "function symbol() view returns (string)",
+          "function decimals() view returns (uint8)",
+        ];
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const [symbol, decimals] = await Promise.all([
+          contract.symbol(),
+          contract.decimals(),
+        ]);
+        return { symbol, decimals };
+      });
     } catch (err) {
       console.error("Error fetching token details:", err);
       return null;
@@ -101,14 +103,21 @@ class EthersService {
 
   async getDetailsByHash(hash: string): Promise<TransactionDetails | null> {
     try {
-      const [tx, receipt] = await Promise.all([
-        this.provider.getTransaction(hash),
-        this.provider.getTransactionReceipt(hash),
-      ]);
+      const [tx, receipt] = await this.rpcPool.executeWithRetry(
+        async (provider) => {
+          const [tx, receipt] = await Promise.all([
+            provider.getTransaction(hash),
+            provider.getTransactionReceipt(hash),
+          ]);
+          return [tx, receipt] as const;
+        },
+      );
 
       if (!tx || !receipt) throw new Error("Transaction not found");
 
-      const block = await this.provider.getBlock(receipt.blockNumber!);
+      const block = await this.rpcPool.executeWithRetry((provider) =>
+        provider.getBlock(receipt.blockNumber!),
+      );
       if (!block) throw new Error("block timestamp could not be found");
       const datetime = new Date(Number(block.timestamp) * 1000).toISOString();
 
@@ -178,7 +187,8 @@ class EthersService {
     } catch (error) {
       console.error("Error in getDetailsByHash:", error);
       throw new Error(
-        `Failed to fetch transaction details: ${error instanceof Error ? error.message : "Unknown error"
+        `Failed to fetch transaction details: ${
+          error instanceof Error ? error.message : "Unknown error"
         }`,
       );
     }
@@ -212,7 +222,9 @@ class EthersService {
 
   async transactionExists(hash: string): Promise<boolean> {
     try {
-      const tx = await this.provider.getTransaction(hash);
+      const tx = await this.rpcPool.executeWithRetry((provider) =>
+        provider.getTransaction(hash),
+      );
       return !!tx;
     } catch {
       return false;
@@ -221,7 +233,10 @@ class EthersService {
 
   async getCurrentBlockNumber(): Promise<bigint> {
     try {
-      return BigInt(await this.provider.getBlockNumber());
+      const blockNumber = await this.rpcPool.executeWithRetry((provider) =>
+        provider.getBlockNumber(),
+      );
+      return BigInt(blockNumber);
     } catch (err) {
       console.error("Failed to fetch block number:", err);
       throw new Error("Failed to fetch block number");
@@ -230,7 +245,9 @@ class EthersService {
 
   async isConnected(): Promise<boolean> {
     try {
-      await this.provider.getBlockNumber();
+      await this.rpcPool.executeWithRetry((provider) =>
+        provider.getBlockNumber(),
+      );
       return true;
     } catch {
       return false;
@@ -239,6 +256,14 @@ class EthersService {
 
   getUSDTContractAddress(): string {
     return this.USDT_CONTRACT;
+  }
+
+  getRPCStats() {
+    return this.rpcPool.getStats();
+  }
+
+  destroy(): void {
+    this.rpcPool.destroy();
   }
 
   get Hello(): string {

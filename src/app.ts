@@ -19,6 +19,15 @@ export const app = new Elysia({
     };
   })
 
+  .get("/rpc/stats", () => {
+    const stats = ethersService.getRPCStats();
+    return {
+      success: true,
+      rpc_pool: stats,
+      timestamp: new Date().toISOString(),
+    };
+  })
+
   .get(
     "/usdt/validate/:contract",
     async ({ params, set }) => {

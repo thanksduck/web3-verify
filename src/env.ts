@@ -13,3 +13,13 @@ export const isProd = env.NODE_ENV === "production";
 export const PORT = env.PORT ?? 7000;
 
 // export const
+
+export const RPC_URL1 = process.env.RPC_URL1 || "https://bsc.blockrazor.xyz";
+export const RPC_URL2 =
+  process.env.RPC_URL2 || "https://bsc-dataseed1.binance.org/";
+export const RPC_URL3 =
+  process.env.RPC_URL3 || "https://bsc-dataseed2.binance.org/";
+export const RPC_URL4 =
+  process.env.RPC_URL4 || "https://bsc-dataseed3.binance.org/";
+export const RPC_URL5 =
+  process.env.RPC_URL5 || "https://bsc-dataseed4.binance.org/";
