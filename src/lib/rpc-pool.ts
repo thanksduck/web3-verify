@@ -41,7 +41,7 @@ export class RPCPool {
     this.checkAllEndpoints();
   }
 
-  private async checkEndpointHealth(endpoint: RPCEndpoint): Promise<void> {
+  private async checkEndpointHealth(endpoint: RPCEndpoint) {
     const start = Date.now();
     try {
       await endpoint.provider.getBlockNumber();
@@ -59,7 +59,7 @@ export class RPCPool {
 
   private async checkAllEndpoints(): Promise<void> {
     await Promise.allSettled(
-      this.endpoints.map((endpoint) => this.checkEndpointHealth(endpoint))
+      this.endpoints.map((endpoint) => this.checkEndpointHealth(endpoint)),
     );
   }
 
@@ -107,7 +107,7 @@ export class RPCPool {
    */
   async executeWithRetry<T>(
     fn: (provider: ethers.JsonRpcProvider) => Promise<T>,
-    maxRetries = 3
+    maxRetries = 3,
   ): Promise<T> {
     const healthy = this.getHealthyEndpoints();
     const candidates =
@@ -129,18 +129,17 @@ export class RPCPool {
         endpoint.isHealthy = endpoint.failureCount < this.maxFailures;
         console.warn(
           `RPC ${endpoint.url} failed (attempt ${i + 1}/${maxRetries}):`,
-          error
+          error,
         );
 
         // If this wasn't the last attempt, continue to next RPC
         if (i < Math.min(candidates.length, maxRetries) - 1) {
-          continue;
         }
       }
     }
 
     throw new Error(
-      `All RPC attempts failed. Last error: ${lastError?.message || "Unknown error"}`
+      `All RPC attempts failed. Last error: ${lastError?.message || "Unknown error"}`,
     );
   }
 

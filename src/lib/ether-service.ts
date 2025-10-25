@@ -23,10 +23,7 @@ class EthersService {
     return address.toLowerCase() === this.USDT_CONTRACT.toLowerCase();
   }
 
-  private async getTokenDetails(contractAddress: string): Promise<{
-    symbol: string;
-    decimals: number;
-  } | null> {
+  private async getTokenDetails(contractAddress: string) {
     try {
       return await this.rpcPool.executeWithRetry(async (provider) => {
         const abi = [
@@ -46,12 +43,7 @@ class EthersService {
     }
   }
 
-  private async validateUSDTTransaction(contractAddress: string): Promise<{
-    isUSDT: boolean;
-    tokenMismatch: boolean;
-    symbol?: string;
-    decimals?: number;
-  }> {
+  private async validateUSDTTransaction(contractAddress: string) {
     const isExpectedUSDT = this.isUSDTContract(contractAddress);
 
     try {
