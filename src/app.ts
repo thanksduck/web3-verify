@@ -82,6 +82,100 @@ export const app = new Elysia({
   })
 
   .get(
+    "/transaction/:hash",
+    async ({ params, query, set }) => {
+      try {
+        params.hash = params.hash.toLowerCase();
+
+        // Check if target wallet is provided
+        if (!query.wallet) {
+          set.status = 400;
+          return {
+            success: false,
+            error: "Target wallet address is required. Provide ?wallet=0x...",
+            hash: params.hash,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
+        const targetWallet = query.wallet.toLowerCase();
+
+        // Validate the transaction for the target wallet
+        const validation =
+          await ethersService.validateTransactionForTargetWallet(
+            params.hash,
+            targetWallet,
+          );
+        console.log(validation);
+        if (validation.error && !validation.receivedInTargetWallet) {
+          set.status = 404;
+          return {
+            success: false,
+            error: validation.error,
+            hash: params.hash,
+            targetWallet,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
+        return {
+          success: validation.isValid,
+          hash: params.hash,
+          targetWallet,
+          validation: {
+            isValid: validation.isValid,
+            receivedInTargetWallet: validation.receivedInTargetWallet,
+            isUSDTTransfer: validation.isUSDTTransfer,
+            contractMatches: validation.contractMatches,
+          },
+          transaction: validation.contractAddress
+            ? {
+                contractAddress: validation.contractAddress.toLowerCase(),
+                fromAddress: validation.fromAddress?.toLowerCase(),
+                toAddress: validation.toAddress?.toLowerCase(),
+                amount: validation.amount,
+                expectedUSDTContract: ethersService
+                  .getUSDTContractAddress()
+                  .toLowerCase(),
+              }
+            : null,
+          message: validation.isValid
+            ? `Valid USDT transfer of ${validation.amount} USDT to target wallet`
+            : validation.receivedInTargetWallet && !validation.isUSDTTransfer
+              ? `Transfer received but not USDT (contract: ${validation.contractAddress})`
+              : "No USDT transfer to target wallet found",
+          timestamp: new Date().toISOString(),
+        };
+      } catch (error) {
+        console.error("Transaction validation error:", error);
+        set.status = 500;
+        return {
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Internal server error",
+          hash: params.hash,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    },
+    {
+      params: t.Object({
+        hash: transactionHashField,
+      }),
+      query: t.Object({
+        wallet: t.Optional(
+          t.String({
+            minLength: 42,
+            maxLength: 42,
+            pattern: "^0x[0-9a-fA-F]{40}$",
+            description: "Target wallet address to check for USDT receipt",
+          }),
+        ),
+      }),
+    },
+  )
+
+  .get(
     "/verify/:hash",
     async ({ params, set }) => {
       try {

@@ -261,6 +261,106 @@ class EthersService {
   get Hello(): string {
     return "Hello";
   }
+
+  /**
+   * Validates if a transaction hash contains a USDT transfer to the target wallet.
+   * This works for both direct USDT transfers and Binance internal transfers (where BNB is sent for gas)
+   * by scanning ALL Transfer events in the transaction logs.
+   *
+   * @param hash - Transaction hash to validate
+   * @param targetWallet - The wallet address that should receive the USDT
+   * @returns Validation result with transfer details if found
+   */
+  async validateTransactionForTargetWallet(
+    hash: string,
+    targetWallet: string,
+  ): Promise<{
+    isValid: boolean;
+    receivedInTargetWallet: boolean;
+    isUSDTTransfer: boolean;
+    contractMatches: boolean;
+    amount?: string;
+    fromAddress?: string;
+    toAddress?: string;
+    contractAddress?: string;
+    error?: string;
+  }> {
+    try {
+      const receipt = await this.rpcPool.executeWithRetry((provider) =>
+        provider.getTransactionReceipt(hash),
+      );
+
+      if (!receipt) {
+        return {
+          isValid: false,
+          receivedInTargetWallet: false,
+          isUSDTTransfer: false,
+          contractMatches: false,
+          error: "Transaction not found",
+        };
+      }
+
+      const TRANSFER_EVENT_SIG =
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+      // Find all Transfer events in the transaction
+      const transferLogs = receipt.logs.filter(
+        (log) => log.topics[0] === TRANSFER_EVENT_SIG,
+      );
+
+      // Look for a Transfer event where the recipient is the target wallet
+      for (const log of transferLogs) {
+        const transferData = this.parseTransferLog(log);
+        if (!transferData) continue;
+
+        // Check if this transfer is TO the target wallet
+        if (transferData.to.toLowerCase() === targetWallet.toLowerCase()) {
+          // Check if this transfer is from the USDT contract
+          const isUSDTContract = this.isUSDTContract(log.address);
+
+          let amount = transferData.value;
+          if (isUSDTContract) {
+            // Get token details to format the amount properly
+            const tokenDetails = await this.getTokenDetails(log.address);
+            if (tokenDetails) {
+              const raw = BigInt(transferData.value);
+              const divisor = BigInt(10) ** BigInt(tokenDetails.decimals);
+              amount = (Number(raw) / Number(divisor)).toString();
+            }
+          }
+
+          return {
+            isValid: isUSDTContract,
+            receivedInTargetWallet: true,
+            isUSDTTransfer: isUSDTContract,
+            contractMatches: isUSDTContract,
+            amount,
+            fromAddress: transferData.from,
+            toAddress: transferData.to,
+            contractAddress: log.address,
+          };
+        }
+      }
+
+      // No transfer to target wallet found
+      return {
+        isValid: false,
+        receivedInTargetWallet: false,
+        isUSDTTransfer: false,
+        contractMatches: false,
+        error: "No transfer to target wallet found in transaction logs",
+      };
+    } catch (error) {
+      return {
+        isValid: false,
+        receivedInTargetWallet: false,
+        isUSDTTransfer: false,
+        contractMatches: false,
+        error:
+          error instanceof Error ? error.message : "Unknown validation error",
+      };
+    }
+  }
 }
 
 export const ethersService = new EthersService();
