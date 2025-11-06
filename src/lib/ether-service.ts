@@ -8,14 +8,10 @@ class EthersService {
   private readonly USDT_CONTRACT = "0x55d398326f99059ff775485246999027b3197955";
 
   constructor() {
-    const rpcUrls = [
-      RPC_URL1,
-      RPC_URL2,
-      RPC_URL3,
-      RPC_URL4,
-      RPC_URL4,
-      RPC_URL5,
-    ];
+    const rpcUrls = [RPC_URL1, RPC_URL2, RPC_URL3, RPC_URL4, RPC_URL5];
+    console.info(
+      `[ETHERS SERVICE] Initializing with ${rpcUrls.length} RPC endpoints`,
+    );
     this.rpcPool = new RPCPool(rpcUrls);
   }
 
@@ -25,6 +21,9 @@ class EthersService {
 
   private async getTokenDetails(contractAddress: string) {
     try {
+      console.info(
+        `[ETHERS SERVICE] Fetching token details for contract: ${contractAddress}`,
+      );
       return await this.rpcPool.executeWithRetry(async (provider) => {
         const abi = [
           "function symbol() view returns (string)",
@@ -38,7 +37,7 @@ class EthersService {
         return { symbol, decimals };
       });
     } catch (err) {
-      console.error("Error fetching token details:", err);
+      console.error("[ETHERS SERVICE] Error fetching token details:", err);
       return null;
     }
   }
@@ -95,6 +94,9 @@ class EthersService {
 
   async getDetailsByHash(hash: string): Promise<TransactionDetails | null> {
     try {
+      console.info(
+        `[ETHERS SERVICE] Getting transaction details for hash: ${hash}`,
+      );
       const [tx, receipt] = await this.rpcPool.executeWithRetry(
         async (provider) => {
           const [tx, receipt] = await Promise.all([
@@ -214,6 +216,7 @@ class EthersService {
 
   async transactionExists(hash: string): Promise<boolean> {
     try {
+      console.info(`[ETHERS SERVICE] Checking if transaction exists: ${hash}`);
       const tx = await this.rpcPool.executeWithRetry((provider) =>
         provider.getTransaction(hash),
       );
@@ -225,12 +228,13 @@ class EthersService {
 
   async getCurrentBlockNumber(): Promise<bigint> {
     try {
+      console.info("[ETHERS SERVICE] Fetching current block number");
       const blockNumber = await this.rpcPool.executeWithRetry((provider) =>
         provider.getBlockNumber(),
       );
       return BigInt(blockNumber);
     } catch (err) {
-      console.error("Failed to fetch block number:", err);
+      console.error("[ETHERS SERVICE] Failed to fetch block number:", err);
       throw new Error("Failed to fetch block number");
     }
   }
@@ -286,6 +290,9 @@ class EthersService {
     error?: string;
   }> {
     try {
+      console.info(
+        `[ETHERS SERVICE] Validating transaction ${hash} for target wallet ${targetWallet}`,
+      );
       const receipt = await this.rpcPool.executeWithRetry((provider) =>
         provider.getTransactionReceipt(hash),
       );

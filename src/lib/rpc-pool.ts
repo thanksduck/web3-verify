@@ -12,16 +12,15 @@ export interface RPCEndpoint {
 export class RPCPool {
   private endpoints: RPCEndpoint[] = [];
   private readonly maxFailures = 3;
-  private readonly healthCheckInterval = 60000; // 1 minute
-  private readonly rotationInterval = 3600000; // 1 hour
+  private readonly healthCheckInterval = 3600000; // 1 hour (changed from 60 seconds to save costs)
   private healthCheckTimer?: Timer;
-  private rotationTimer?: Timer;
-  private currentIndex = 0;
 
   constructor(rpcUrls: string[]) {
+    console.info(
+      `[RPC POOL] Initializing pool with ${rpcUrls.length} endpoints`,
+    );
     this.initializeEndpoints(rpcUrls);
     this.startHealthChecks();
-    this.startRotation();
   }
 
   private initializeEndpoints(rpcUrls: string[]): void {
@@ -37,6 +36,7 @@ export class RPCPool {
       lastChecked: Date.now(),
     }));
 
+    console.info("[RPC POOL] Running initial health check on startup");
     // Initial health check
     this.checkAllEndpoints();
   }
@@ -44,36 +44,46 @@ export class RPCPool {
   private async checkEndpointHealth(endpoint: RPCEndpoint) {
     const start = Date.now();
     try {
+      console.info(
+        `[RPC CALL] Health check to: ${endpoint.url.substring(0, 50)}...`,
+      );
       await endpoint.provider.getBlockNumber();
       endpoint.latency = Date.now() - start;
       endpoint.isHealthy = true;
       endpoint.failureCount = 0;
       endpoint.lastChecked = Date.now();
+      console.info(
+        `[RPC SUCCESS] Health check passed in ${endpoint.latency}ms: ${endpoint.url.substring(0, 50)}...`,
+      );
     } catch (error) {
       endpoint.failureCount++;
       endpoint.isHealthy = endpoint.failureCount < this.maxFailures;
       endpoint.lastChecked = Date.now();
-      console.warn(`RPC ${endpoint.url} health check failed:`, error);
+      console.warn(
+        `[RPC FAILED] Health check failed for ${endpoint.url.substring(0, 50)}...`,
+        error,
+      );
     }
   }
 
   private async checkAllEndpoints(): Promise<void> {
+    console.info(
+      `[RPC POOL] Running health check on ${this.endpoints.length} endpoints`,
+    );
     await Promise.allSettled(
       this.endpoints.map((endpoint) => this.checkEndpointHealth(endpoint)),
     );
+    console.info("[RPC POOL] Health check completed");
   }
 
   private startHealthChecks(): void {
+    console.info(
+      `[RPC POOL] Starting health checks every ${this.healthCheckInterval / 1000 / 60} minutes (hourly)`,
+    );
     this.healthCheckTimer = setInterval(() => {
+      console.info("[RPC POOL] Hourly scheduled health check triggered");
       this.checkAllEndpoints();
     }, this.healthCheckInterval);
-  }
-
-  private startRotation(): void {
-    this.rotationTimer = setInterval(() => {
-      console.log("Rotating RPC endpoints...");
-      this.currentIndex = (this.currentIndex + 1) % this.endpoints.length;
-    }, this.rotationInterval);
   }
 
   private getHealthyEndpoints(): RPCEndpoint[] {
@@ -118,17 +128,23 @@ export class RPCPool {
     for (let i = 0; i < Math.min(candidates.length, maxRetries); i++) {
       const endpoint = candidates[i];
       try {
+        console.info(
+          `[RPC CALL] Executing request on: ${endpoint.url.substring(0, 50)}... (attempt ${i + 1}/${maxRetries})`,
+        );
         const result = await fn(endpoint.provider);
         // Success - mark as healthy
         endpoint.failureCount = 0;
         endpoint.isHealthy = true;
+        console.info(
+          `[RPC SUCCESS] Request succeeded on: ${endpoint.url.substring(0, 50)}...`,
+        );
         return result;
       } catch (error) {
         lastError = error as Error;
         endpoint.failureCount++;
         endpoint.isHealthy = endpoint.failureCount < this.maxFailures;
         console.warn(
-          `RPC ${endpoint.url} failed (attempt ${i + 1}/${maxRetries}):`,
+          `[RPC FAILED] ${endpoint.url.substring(0, 50)}... failed (attempt ${i + 1}/${maxRetries}):`,
           error,
         );
 
@@ -174,9 +190,7 @@ export class RPCPool {
   destroy(): void {
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer);
-    }
-    if (this.rotationTimer) {
-      clearInterval(this.rotationTimer);
+      console.info("[RPC POOL] Health check timer cleared");
     }
   }
 }
